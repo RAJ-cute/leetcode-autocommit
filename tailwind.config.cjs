@@ -1,0 +1,1 @@
+module.exports = { content: ['./*.html', './src/**/*.{ts,tsx}'], theme: { extend: { colors: { canvas: '#090909', panel: '#151515', line: '#313131', muted: '#888888', accent: '#e5484d' } } }, plugins: [] };
