@@ -3,3 +3,13 @@ dist/
 .npm-cache/
 .env*
 *.log
+
+# AI agent & IDE artifacts
+.agent/
+.agents/
+.codex/
+.cursor/
+.devin/
+.gemini/
+.impeccable/
+
