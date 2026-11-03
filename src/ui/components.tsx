@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowUpRight, CircleCheck, Inbox, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, Inbox, ShieldCheck } from 'lucide-react';
 import type { Job, Submission } from '../shared/types';
 import { dateLabel } from './data';
 
@@ -20,7 +20,7 @@ export function Button({ children, onClick, variant = 'primary', disabled = fals
   return <button type={type} disabled={disabled} onClick={onClick} className={`button button--${variant} ${className}`}>{children}</button>;
 }
 
-export function Notice({ message, tone = 'error', onDismiss }: { message: string; tone?: 'error' | 'success'; onDismiss?: () => void }) {
+export function Notice({ message, tone = 'error', onDismiss }: { message: string; tone?: 'error' | 'success' | 'info'; onDismiss?: () => void }) {
   if (!message) return null;
   return <div className={`notice notice--${tone}`} role={tone === 'error' ? 'alert' : 'status'}><span>{message}</span>{onDismiss && <button aria-label="Dismiss message" onClick={onDismiss}>×</button>}</div>;
 }
@@ -39,14 +39,24 @@ export function StatCard({ label, value, footnote, accent = false }: { label: st
 }
 
 export function SubmissionRow({ submission, job, onOpen }: { submission: Submission; job?: Job; onOpen: () => void }) {
-  return <button className="submission-row" onClick={onOpen}>
+  const uploadLabel = job?.status === 'completed' ? 'On GitHub' : job?.status === 'failed' ? 'Upload failed' : job ? 'Sync pending' : 'Saved locally';
+  return <button className="submission-row" data-mascot={Number(submission.problemId) % 6} onClick={onOpen}>
     <span className="submission-number">{submission.problemId.padStart(4, '0')}</span>
     <span className="submission-title"><strong>{submission.problemTitle}</strong><small>{submission.topics.slice(0, 2).join(' · ') || 'Other'}</small></span>
     <span className={`difficulty difficulty--${submission.difficulty.toLowerCase()}`}>{submission.difficulty}</span>
     <span className="submission-language">{submission.language}</span>
     <span className="submission-date">{dateLabel(submission.submittedAt)}</span>
-    {job ? <StatusPill job={job}/> : <CircleCheck size={16} className="submission-accepted"/>}
+    <span className={`submission-sync submission-sync--${job?.status || 'local'}`}><span className="status-dot"/>{uploadLabel}</span>
     <ArrowUpRight size={16} className="submission-arrow"/>
+  </button>;
+}
+
+export function CollectionCard({ submission, job, onOpen, index }: { submission: Submission; job?: Job; onOpen: () => void; index: number }) {
+  const mascot = Number(submission.problemId) % 6;
+  const label = job?.status === 'completed' ? 'On GitHub' : job?.status === 'failed' ? 'Upload failed' : job ? 'Sync pending' : 'Saved locally';
+  return <button className="collection-card" onClick={onOpen} aria-label={`Open ${submission.problemTitle}, ${submission.difficulty}, ${label}`}>
+    <span className={`collection-art collection-art--${mascot}`} aria-hidden="true"><span className="collection-ribbon">{String(index + 1).padStart(2, '0')}</span></span>
+    <span className="collection-card-body"><span className="collection-card-meta"><span>#{submission.problemId.padStart(4, '0')}</span><span className={`difficulty difficulty--${submission.difficulty.toLowerCase()}`}>{submission.difficulty}</span></span><strong>{submission.problemTitle}</strong><small>{submission.topics[0] || 'Problem'} · {submission.language}</small><span className={`collection-card-status collection-card-status--${job?.status || 'local'}`}><span className="status-dot"/>{label}</span></span>
   </button>;
 }
 
