@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowRight, Download, Github, KeyRound, RefreshCw, ShieldCheck, Trash2, Upload, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowRight, BookOpen, Download, Github, KeyRound, RefreshCw, ShieldCheck, Trash2, Upload, Zap } from 'lucide-react';
 import type { Job, Request, Settings } from '../shared/types';
 import { clearLocalData, db, importBackup } from '../shared/db';
 import { send } from './api';
@@ -17,6 +17,8 @@ export function SettingsView({ settings, connected, jobs, act, refresh }: Props)
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => { setRepository(settings.selectedRepository || ''); }, [settings.selectedRepository]);
 
   async function loadRepositories() {
     setError(''); setBusy(true);
@@ -61,7 +63,10 @@ export function SettingsView({ settings, connected, jobs, act, refresh }: Props)
         <div className="settings-field settings-field--button"><Button disabled={!token.trim() || busy} onClick={() => void replaceToken()}>Validate token <ArrowRight size={15}/></Button></div>
       </div>
       <div className="settings-grid settings-grid--repo"><div className="settings-field"><label htmlFor="settings-repository">TARGET REPOSITORY</label><select id="settings-repository" value={repository} onChange={event => setRepository(event.target.value)}><option value="">Select a repository</option>{[...new Set([repository, ...repositories])].filter(Boolean).map(name => <option key={name} value={name}>{name}</option>)}</select></div><div className="settings-field settings-field--button"><Button variant="ghost" disabled={!connected || busy} onClick={() => void loadRepositories()}><RefreshCw size={15}/> Load repositories</Button><Button disabled={!repository} onClick={() => void act({ action: 'SELECT_REPOSITORY', payload: { repository } }, 'Repository selected.')}>Save</Button></div></div>
-      <button className="danger-link" onClick={() => { if (window.confirm('Disconnect GitHub? Your local solutions and notes will remain.')) void act({ action: 'DISCONNECT' }, 'GitHub disconnected.'); }}>Disconnect GitHub</button>
+      <div className="account-actions">
+        <button className="setup-replay" onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html?guide=1') })}><BookOpen size={16}/> View setup tutorial</button>
+        {connected && <button className="danger-link" onClick={() => { if (window.confirm('Disconnect GitHub? Your local solutions and notes will remain.')) { setToken(''); setRepositories([]); void act({ action: 'DISCONNECT' }, 'GitHub disconnected.'); } }}>Disconnect GitHub</button>}
+      </div>
     </section>
 
     <div className="section-heading"><div><Eyebrow index="02">AUTOMATION</Eyebrow><h2>Make it yours</h2></div><Zap size={21} className="section-icon"/></div>
