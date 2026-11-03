@@ -15,7 +15,7 @@ describe('GitHub connection from onboarding tab', () => {
     vi.stubGlobal('chrome', {
       runtime: {
         id, getURL: (path: string) => `chrome-extension://${id}/${path}`,
-        getManifest: () => ({ version: '0.1.1' }),
+        getManifest: () => ({ version: '0.1.3' }),
         onInstalled: { addListener: vi.fn() }, onStartup: { addListener: vi.fn() },
         onMessage: { addListener: (callback: typeof listener) => { listener = callback; } }
       },

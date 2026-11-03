@@ -1,5 +1,6 @@
 import { db, saveSubmission, updateProgress } from '../shared/db';
 import { DEFAULT_SETTINGS, validRequest, type Job, type Request, type Settings, type Submission } from '../shared/types';
+import { planUploads } from '../shared/sync';
 import { commitSolution, GitHubError, identity, pullRepository, repositories, repository } from './github';
 import { actionAllowed, senderContext } from './sender';
 
@@ -104,14 +105,16 @@ async function handle(req: Request, content: boolean): Promise<Record<string, un
       if (!config.selectedRepository || !auth) throw new Error('Connect a repository first');
       const remote=await pullRepository(auth,config.selectedRepository);
       let imported=0,conflicts=0;
+      const conflictIds = new Set<string>();
       for (const record of remote.records) {
         const local=await db.get<Submission>('submissions',record.submission.submissionId);
         if (!local) { await db.put('submissions',record.submission); imported++; }
-        else if (local.sourceCode!==record.submission.sourceCode) conflicts++;
+        else if (local.sourceCode!==record.submission.sourceCode) { conflicts++; conflictIds.add(local.submissionId); }
         else if (!local.githubCommitSha) await db.put('submissions',{...local,githubCommitSha:record.submission.githubCommitSha,githubFilePath:record.submission.githubFilePath});
         if (!local || local.sourceCode===record.submission.sourceCode) {
           const id=`${config.selectedRepository}:${record.submission.submissionId}`;
-          if (!await db.get<Job>('jobs',id)) await db.put('jobs',{id,submissionId:record.submission.submissionId,targetRepository:config.selectedRepository,status:'completed',attempts:0,createdAt:record.submission.submittedAt,commitSha:record.submission.githubCommitSha});
+          const existingJob = await db.get<Job>('jobs',id);
+          if (existingJob?.status !== 'completed') await db.put('jobs',{id,submissionId:record.submission.submissionId,targetRepository:config.selectedRepository,status:'completed',attempts:existingJob?.attempts || 0,createdAt:existingJob?.createdAt || record.submission.submittedAt,commitSha:record.submission.githubCommitSha} satisfies Job);
         }
         if (record.progress) {
           const before=await db.get<import('../shared/types').Progress>('progress',record.progress.problemId);
@@ -119,8 +122,17 @@ async function handle(req: Request, content: boolean): Promise<Record<string, un
           else if (before.updatedAt > record.progress.updatedAt && JSON.stringify(before)!==JSON.stringify(record.progress)) conflicts++;
         }
       }
-      for (const job of await db.jobs()) if (job.status === 'failed') await db.put('jobs',{...job,status:'pending',attempts:0,nextAttemptAt:undefined});
-      void processQueue(); return {imported,conflicts,empty:!!remote.empty};
+      const submissions = await db.submissions();
+      const jobs = await db.jobs();
+      const plan = planUploads(submissions,jobs,config.selectedRepository,conflictIds,!!remote.empty);
+      for (const submissionId of plan.queueIds) {
+        const id = `${config.selectedRepository}:${submissionId}`;
+        await db.put('jobs',{id,submissionId,targetRepository:config.selectedRepository,status:'pending',attempts:0,createdAt:new Date().toISOString()} satisfies Job);
+      }
+      for (const job of plan.retryJobs) await db.put('jobs',{...job,status:'pending',attempts:0,errorCode:undefined,nextAttemptAt:undefined});
+      const pending = (await db.jobs()).filter(job=>job.targetRepository===config.selectedRepository && (job.status==='pending' || job.status==='processing')).length;
+      void processQueue();
+      return {imported,conflicts,queued:plan.queueIds.length,retried:plan.retryJobs.length,pending,localCount:submissions.length,empty:!!remote.empty};
     }
   }
 }
